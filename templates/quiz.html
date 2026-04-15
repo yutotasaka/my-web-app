@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QUIZ RPG</title>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'DotGothic16', sans-serif; background: #000; color: #fff; margin: 0; overflow: hidden; touch-action: manipulation; }
+        
+        /* --- 演出エリア --- */
+        .stage-view {
+            height: 35vh; /* スマホ用に少し短く */
+            position: relative;
+            display: flex; justify-content: center; align-items: center;
+            border-bottom: 4px solid #fff; overflow: hidden;
+        }
+
+        /* 洞窟バトル背景 */
+        .mode-battle {
+            background: 
+                radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.8) 100%),
+                url('https://www.transparenttextures.com/patterns/dark-matter.png'), /* 岩肌感 */
+                linear-gradient(to bottom, #2c3e50, #000);
+        }
+
+        /* 育成・修行背景（道場風） */
+        .mode-study {
+            background: linear-gradient(to bottom, #2d1b0d, #5d4037);
+            border-bottom-color: #f59e0b;
+        }
+
+        /* キャラクター配置 */
+        .char-box { position: relative; z-index: 2; text-align: center; }
+        .enemy-img { width: 120px; height: 120px; object-fit: contain; filter: drop-shadow(0 0 15px #ff4757); animation: enemy-move 3s ease-in-out infinite; }
+        .my-char-large { width: 120px; height: 120px; object-fit: contain; animation: training-move 2s ease-in-out infinite; }
+
+        @keyframes enemy-move { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.1); filter: brightness(1.2); } }
+        @keyframes training-move { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg) translateY(-5px); } }
+
+        /* --- UIパネル --- */
+        .ui-panel { padding: 15px; background: #111; height: 65vh; box-sizing: border-box; }
+        
+        .hp-section { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .hp-bar-bg { flex: 1; height: 10px; background: #333; border-radius: 5px; border: 1px solid #fff; }
+        .hp-bar-fill { height: 100%; background: #4ade80; transition: width 0.3s; }
+
+        .timer-line { height: 4px; background: #ef4444; width: 100%; position: absolute; bottom: 0; left: 0; }
+
+        .question-box { 
+            background: #222; border: 2px solid #444; padding: 12px; margin-bottom: 15px; 
+            font-size: 0.95rem; min-height: 60px; line-height: 1.4;
+        }
+
+        .choice-grid { display: grid; gap: 8px; }
+        .choice-btn { 
+            width: 100%; padding: 14px; background: #333; border: 2px solid #fff; 
+            color: #fff; font-family: 'DotGothic16'; font-size: 0.9rem; text-align: left;
+        }
+        .choice-btn:active { background: #fff; color: #000; }
+
+        /* 結果表示 */
+        .judgement { border: 3px double #fff; padding: 15px; background: #1a1a1a; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="stage-view {{ 'mode-battle' if session.mode == 'battle' else 'mode-study' }}">
+        {% if session.mode == 'battle' %}
+            <div style="position:absolute; top:10px; left:10px; font-size:0.7rem;">DEFEATED: {{ session.score }}</div>
+            <div class="char-box">
+                <div style="font-size:0.7rem; color:#ff4757; margin-bottom:5px;">洞窟の魔物</div>
+                <img src="/static/images/enemy_{{ enemy_id }}.png" class="enemy-img">
+            </div>
+            {% if not is_judged %}
+                <div id="timer-bar" class="timer-line"></div>
+            {% endif %}
+        {% else %}
+            <div class="char-box">
+                <div style="font-size:0.7rem; color:#f59e0b; margin-bottom:5px;">修行中... 経験値を溜めろ！</div>
+                <img src="/static/images/my_monster_{{ user_stats.form_name }}.png" class="my-char-large">
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="ui-panel">
+        <div class="hp-section">
+            <img src="/static/images/my_monster_{{ user_stats.form_name }}.png" style="width:30px; height:30px;">
+            <div class="hp-bar-bg">
+                <div class="hp-bar-fill" style="width: {{ ((user_stats.max_lives - session.miss_count) / user_stats.max_lives * 100) if session.mode == 'battle' else 100 }}%;"></div>
+            </div>
+        </div>
+
+        <div class="question-box">
+            {{ question.question }}
+        </div>
+
+        {% if not is_judged %}
+            <form method="POST" id="quiz-form" class="choice-grid">
+                {% if question.type == 'choice' %}
+                    {% for opt in question.options %}
+                    <button type="submit" name="answer" value="{{ loop.index0 }}" class="choice-btn">▶ {{ opt }}</button>
+                    {% endfor %}
+                {% else %}
+                    <input type="text" name="answer" style="width:100%; padding:15px; background:#000; color:#fff; border:2px solid #fff; box-sizing:border-box; margin-bottom:10px;" autofocus placeholder="答えを入力...">
+                    <button type="submit" class="choice-btn" style="text-align:center;">決定</button>
+                {% endif %}
+            </form>
+        {% else %}
+            <div class="judgement">
+                <h3 style="margin:0; color: {{ '#4ade80' if is_correct else '#ef4444' }};">
+                    {{ 'SUCCESS!' if is_correct else 'MISS...' }}
+                </h3>
+                <p style="margin:10px 0; font-size:0.85rem;">正解: {{ correct_text }}</p>
+                <p style="font-size:0.7rem; color:#94a3b8;">{{ commentary }}</p>
+                <a href="/next" class="choice-btn" style="text-align:center; text-decoration:none; display:block; margin-top:10px;">次へ</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        {% if session.mode == 'battle' and not is_judged %}
+        let timeLeft = {{ user_stats.time_limit }};
+        const total = timeLeft;
+        const bar = document.getElementById('timer-bar');
+        const countdown = setInterval(() => {
+            timeLeft -= 1;
+            if (bar) bar.style.width = (timeLeft / total * 100) + "%";
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                const f = document.getElementById('quiz-form');
+                const i = document.createElement('input');
+                i.type = 'hidden'; i.name = 'answer'; i.value = 'TIMEOUT';
+                f.appendChild(i); f.submit();
+            }
+        }, 1000);
+        {% endif %}
+    </script>
+</body>
+</html>

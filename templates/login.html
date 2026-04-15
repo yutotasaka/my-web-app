@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOGIN - クイズRPG</title>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'DotGothic16', sans-serif; background: #000; color: #fff; 
+            display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
+        }
+        .login-card { 
+            width: 100%; max-width: 400px; padding: 25px; border: 4px solid #fff; 
+            background: #111; text-align: center; box-sizing: border-box;
+        }
+        h1 { font-size: 1.5rem; color: #f59e0b; margin: 0 0 20px 0; }
+        
+        /* 注意書きエリア */
+        .notice-box {
+            background: #222; border: 2px solid #444; padding: 15px; 
+            text-align: left; font-size: 0.8rem; line-height: 1.6; 
+            height: 120px; overflow-y: scroll; margin-bottom: 25px;
+            color: #94a3b8;
+        }
+        .notice-box b { color: #ef4444; }
+
+        input { 
+            width: 100%; padding: 15px; background: #000; border: 2px solid #fff; 
+            color: #fff; font-family: 'DotGothic16'; text-align: center; 
+            margin-bottom: 20px; box-sizing: border-box; font-size: 1rem;
+        }
+        .btn-start { 
+            display: block; width: 100%; padding: 15px; background: transparent; 
+            border: 2px solid #fff; color: #fff; cursor: pointer; 
+            font-weight: bold; font-family: 'DotGothic16'; font-size: 1rem;
+        }
+        .btn-start:active { background: #fff; color: #000; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1>ボサツム</h1>
+
+        <div class="notice-box">
+            【冒険者へ】<br>
+            ・登録名は「名前_⭕️⭕️総区」と記入ください。<br>
+            ・この冒険では<b>正解した問題</b>がmyボサツンの経験値となります。<br>
+            ・重複正解は経験値にはならず、<b>あなたの教学力のみ</b>が上がります。<br>
+            ・進化をすると、<b>回答時間</b>が伸び、<b>命の数</b>が増えるため、スコアを伸ばしやすくなります。<br>
+            ・章別学習と復習問題でmyボサツンを育成し、バトルモードに挑戦してみてね。<br>
+            ・公共の端末では必ず<b>ログアウト</b>を行ってください。<br>
+            ・記述問題は完答です。ごめんね。
+        </div>
+
+        <p style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 10px;">勇者の名前を刻んでください</p>
+        
+        <form method="POST">
+            <input type="text" name="user_name" placeholder="なまえを入力" required autofocus>
+            <button type="submit" class="btn-start">▶ 冒険をはじめる</button>
+        </form>
+    </div>
+</body>
+</html>
