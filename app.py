@@ -155,4 +155,5 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Renderなどのサーバー環境では 0.0.0.0 で待ち受ける必要があります
+    app.run(host='0.0.0.0', port=10000)
