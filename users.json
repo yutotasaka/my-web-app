@@ -54,7 +54,7 @@
         "max_battle_score": 5
     },
     "南": {
-        "total_score": 23,
+        "total_score": 39,
         "solved_ids": [
             "ch4_01",
             "ch5_01",
@@ -78,7 +78,23 @@
             "ch5_14",
             "ch7_09",
             "ch3_07",
-            "ch1_10"
+            "ch1_10",
+            "ch2_09",
+            "ch2_06",
+            "ch2_10",
+            "ch2_03",
+            "ch2_05",
+            "ch2_04",
+            "ch2_13",
+            "ch8_08",
+            "ch7_06",
+            "ch6_11",
+            "ch8_11",
+            "ch8_07",
+            "ch6_15",
+            "ch7_10",
+            "ch6_01",
+            "ch8_13"
         ],
         "is_legend": false,
         "max_combo": 5,

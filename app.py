@@ -71,7 +71,8 @@ def start_quiz(category):
     if 'user_name' not in session: return redirect(url_for('login'))
     ids = [q['id'] for q in load_json(QUESTIONS_FILE).get(category, [])]
     random.shuffle(ids)
-    session.update({'question_ids': ids[:10], 'current_index': 0, 'score': 0, 'mode': 'study', 'category': category})
+    # new_solved_count をリセット
+    session.update({'question_ids': ids[:10], 'current_index': 0, 'score': 0, 'new_solved_count': 0, 'mode': 'study', 'category': category})
     return redirect(url_for('quiz_page'))
 
 @app.route('/start_total_study')
@@ -79,7 +80,8 @@ def start_total_study():
     if 'user_name' not in session: return redirect(url_for('login'))
     all_q = get_all_questions_flat()
     random.shuffle(all_q)
-    session.update({'question_ids': [q['id'] for q in all_q[:20]], 'current_index': 0, 'score': 0, 'mode': 'total_study', 'category': "ただの腕試し"})
+    # new_solved_count をリセット
+    session.update({'question_ids': [q['id'] for q in all_q[:20]], 'current_index': 0, 'score': 0, 'new_solved_count': 0, 'mode': 'total_study', 'category': "ただの腕試し"})
     return redirect(url_for('quiz_page'))
 
 @app.route('/battle_start')
@@ -87,7 +89,8 @@ def battle_start():
     if 'user_name' not in session: return redirect(url_for('login'))
     ids = [q['id'] for q in get_all_questions_flat()]
     random.shuffle(ids)
-    session.update({'question_ids': ids, 'current_index': 0, 'score': 0, 'miss_count': 0, 'enemy_id': 1, 'mode': 'battle', 'category': "サバイバルバトル"})
+    # new_solved_count をリセット
+    session.update({'question_ids': ids, 'current_index': 0, 'score': 0, 'new_solved_count': 0, 'miss_count': 0, 'enemy_id': 1, 'mode': 'battle', 'category': "サバイバルバトル"})
     return redirect(url_for('quiz_page'))
 
 @app.route('/quiz', methods=['GET', 'POST'])
@@ -112,11 +115,16 @@ def quiz_page():
         if is_correct:
             session['score'] = session.get('score', 0) + 1
             if session.get('mode') == 'battle': session['enemy_id'] = session.get('enemy_id', 1) + 1
+            
             users = load_json(USER_DATA_FILE)
             u = users.setdefault(session['user_name'], {"total_score": 0, "solved_ids": [], "max_battle_score": 0})
+            
+            # 新規正解の判定
             if q_data['id'] not in u['solved_ids']:
                 u['total_score'] += 1
                 u['solved_ids'].append(q_data['id'])
+                # セッション内の新規正解数をカウントアップ
+                session['new_solved_count'] = session.get('new_solved_count', 0) + 1
                 save_json(USER_DATA_FILE, users)
                 user_stats = get_user_stats(session['user_name'])
         else:
@@ -136,7 +144,16 @@ def end_logic(name, score, total, failed, enemy_id=1):
     if session.get('mode') == 'battle' and score > u.get('max_battle_score', 0):
         u['max_battle_score'] = score
         save_json(USER_DATA_FILE, users)
-    return render_template('result.html', score=score, total=total, user_stats=get_user_stats(name), failed=failed, enemy_id=enemy_id, mode=session.get('mode'))
+    
+    # リザルト画面に new_solved_count を渡す
+    return render_template('result.html', 
+                           score=score, 
+                           total=total, 
+                           new_solved_count=session.get('new_solved_count', 0),
+                           user_stats=get_user_stats(name), 
+                           failed=failed, 
+                           enemy_id=enemy_id, 
+                           mode=session.get('mode'))
 
 @app.route('/next')
 def next_question():
@@ -155,5 +172,4 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == "__main__":
-    # Renderなどのサーバー環境では 0.0.0.0 で待ち受ける必要があります
     app.run(host='0.0.0.0', port=10000)

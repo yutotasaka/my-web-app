@@ -18,7 +18,7 @@
     </style>
 </head>
 <body>
-    <div class="result-card">
+<div class="result-card">
         {% if failed %}
             <h2 class="failed">力尽きた...</h2>
             <div class="score failed">{{ score }}</div>
@@ -26,7 +26,15 @@
         {% else %}
             <h2 class="success">修行完了！</h2>
             <div class="score success">{{ score }}<small style="font-size:1.5rem;">/{{ total }}</small></div>
-            <p>経験値を獲得した</p>
+            
+            <div style="background: rgba(96, 165, 250, 0.1); border-radius: 8px; padding: 10px; margin: 10px 0;">
+                <p style="margin:0; font-size:0.9rem;">
+                    新規正解数: <b style="color:#60a5fa; font-size:1.2rem;">+{{ new_solved_count }}</b>
+                </p>
+                <small style="color:#94a3b8;">（経験値として蓄積されました）</small>
+            </div>
+            
+            <p>進化まであと少し...</p>
         {% endif %}
 
         <div style="margin-top:30px; padding:15px; border-top:1px solid #333; font-size:0.9rem;">
