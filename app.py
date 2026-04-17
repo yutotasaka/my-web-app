@@ -1,30 +1,52 @@
 from flask import Flask, render_template, request, session, redirect, url_for
 import json, random, os
+import redis  # 追加
 
 app = Flask(__name__)
 app.secret_key = "nichiren_quiz_ultimate_game_key"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-USER_DATA_FILE = os.path.join(BASE_DIR, "users.json")
 QUESTIONS_FILE = os.path.join(BASE_DIR, "questions.json")
 MAX_ENEMY_TYPE = 15 
 
+# --- Redis接続設定 ---
+# Renderの環境変数 REDIS_URL から取得します（未設定時はプレースホルダ）
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://ここにご自身のURLをペースト')
+r = redis.from_url(REDIS_URL, decode_responses=True)
+
 def load_json(path):
-    if not os.path.exists(path): 
-        if "users.json" in path: save_json(path, {})
-        return {}
+    if not os.path.exists(path): return {}
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.loads(f.read().strip() or "{}")
     except: return {}
 
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+# --- Redis用データ操作関数 ---
+def load_json_redis(name):
+    """Redisから特定のユーザーデータを取得"""
+    data = r.get(f"user:{name}")
+    if data:
+        return json.loads(data)
+    # データがない場合は初期値を返す
+    return {"total_score": 0, "solved_ids": [], "max_battle_score": 0}
 
+def save_json_redis(name, data):
+    """Redisにユーザーデータを保存"""
+    r.set(f"user:{name}", json.dumps(data, ensure_ascii=False))
+
+def get_all_users_from_redis():
+    """ランキング用に全ユーザーデータを取得"""
+    users = {}
+    keys = r.keys("user:*")
+    for key in keys:
+        name = key.split("user:")[1]
+        users[name] = load_json_redis(name)
+    return users
+
+# --- get_user_stats の修正 ---
 def get_user_stats(name):
-    users = load_json(USER_DATA_FILE)
-    u_data = users.get(name, {"total_score": 0, "solved_ids": [], "max_battle_score": 0})
+    # load_json ではなく Redis版を使う
+    u_data = load_json_redis(name)
     total = u_data.get('total_score', 0)
     
     if total >= 125:
@@ -71,7 +93,6 @@ def start_quiz(category):
     if 'user_name' not in session: return redirect(url_for('login'))
     ids = [q['id'] for q in load_json(QUESTIONS_FILE).get(category, [])]
     random.shuffle(ids)
-    # new_solved_count をリセット
     session.update({'question_ids': ids[:10], 'current_index': 0, 'score': 0, 'new_solved_count': 0, 'mode': 'study', 'category': category})
     return redirect(url_for('quiz_page'))
 
@@ -80,7 +101,6 @@ def start_total_study():
     if 'user_name' not in session: return redirect(url_for('login'))
     all_q = get_all_questions_flat()
     random.shuffle(all_q)
-    # new_solved_count をリセット
     session.update({'question_ids': [q['id'] for q in all_q[:20]], 'current_index': 0, 'score': 0, 'new_solved_count': 0, 'mode': 'total_study', 'category': "ただの腕試し"})
     return redirect(url_for('quiz_page'))
 
@@ -89,7 +109,6 @@ def battle_start():
     if 'user_name' not in session: return redirect(url_for('login'))
     ids = [q['id'] for q in get_all_questions_flat()]
     random.shuffle(ids)
-    # new_solved_count をリセット
     session.update({'question_ids': ids, 'current_index': 0, 'score': 0, 'new_solved_count': 0, 'miss_count': 0, 'enemy_id': 1, 'mode': 'battle', 'category': "サバイバルバトル"})
     return redirect(url_for('quiz_page'))
 
@@ -116,16 +135,16 @@ def quiz_page():
             session['score'] = session.get('score', 0) + 1
             if session.get('mode') == 'battle': session['enemy_id'] = session.get('enemy_id', 1) + 1
             
-            users = load_json(USER_DATA_FILE)
-            u = users.setdefault(session['user_name'], {"total_score": 0, "solved_ids": [], "max_battle_score": 0})
+            # Redisからユーザーデータを読み込み
+            u = load_json_redis(session['user_name'])
             
             # 新規正解の判定
             if q_data['id'] not in u['solved_ids']:
                 u['total_score'] += 1
                 u['solved_ids'].append(q_data['id'])
-                # セッション内の新規正解数をカウントアップ
                 session['new_solved_count'] = session.get('new_solved_count', 0) + 1
-                save_json(USER_DATA_FILE, users)
+                # Redisへ保存
+                save_json_redis(session['user_name'], u)
                 user_stats = get_user_stats(session['user_name'])
         else:
             if session.get('mode') == 'battle':
@@ -139,13 +158,13 @@ def quiz_page():
     return render_template('quiz.html', question=q_data, is_judged=False, index=curr+1, user_stats=user_stats, enemy_id=enemy_img_id)
 
 def end_logic(name, score, total, failed, enemy_id=1):
-    users = load_json(USER_DATA_FILE)
-    u = users.get(name, {})
+    # Redisからユーザーデータを読み込み
+    u = load_json_redis(name)
     if session.get('mode') == 'battle' and score > u.get('max_battle_score', 0):
         u['max_battle_score'] = score
-        save_json(USER_DATA_FILE, users)
+        # Redisへ保存
+        save_json_redis(name, u)
     
-    # リザルト画面に new_solved_count を渡す
     return render_template('result.html', 
                            score=score, 
                            total=total, 
@@ -162,8 +181,9 @@ def next_question():
 
 @app.route('/ranking')
 def show_ranking():
-    users = load_json(USER_DATA_FILE)
-    sorted_users = sorted(users.items(), key=lambda x: x[1].get('max_battle_score', 0), reverse=True)
+    # Redisから全ユーザーデータを集計してランキング作成
+    users_dict = get_all_users_from_redis()
+    sorted_users = sorted(users_dict.items(), key=lambda x: x[1].get('max_battle_score', 0), reverse=True)
     return render_template('ranking.html', ranking=sorted_users)
 
 @app.route('/logout')
