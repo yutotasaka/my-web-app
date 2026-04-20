@@ -12,7 +12,11 @@ MAX_ENEMY_TYPE = 15
 # --- Redis接続設定 ---
 # Renderの環境変数 REDIS_URL から取得します（未設定時はプレースホルダ）
 REDIS_URL = os.environ.get('REDIS_URL', 'rediss://default:AZ2mAAIncDExYmYzMWMwOGQ3MzI0Y2E4YmFiMGYzOTQ4MmU5YmVkN3AxNDAzNTg@rational-dinosaur-40358.upstash.io:6379')
-r = redis.from_url(REDIS_URL, decode_responses=True)
+r = redis.from_url(
+    REDIS_URL, 
+    decode_responses=True, 
+    ssl_cert_reqs=None  # SSL証明書の検証をスキップ（接続エラー対策）
+)
 
 def load_json(path):
     if not os.path.exists(path): return {}
