@@ -21,14 +21,15 @@
             study: new Audio('/static/sounds/bgm_study.mp3')
         };
 
-        // 全てループ設定
+        // 基本設定
         Object.values(bgms).forEach(b => { 
             b.loop = true; 
-            b.volume = 0.4; // 爆音防止に少し下げめがオススメ
+            b.volume = 0.4;
             b.preload = "auto";
         });
 
         let currentBgm = null;
+        let isAudioEnabled = false; // 音声が有効化されたかどうかのフラグ
 
         /**
          * BGMを切り替える関数（子画面から呼び出す）
@@ -37,26 +38,56 @@
             const nextBgm = bgms[type];
             if (!nextBgm || currentBgm === nextBgm) return;
 
+            // 今の曲を停止
             if (currentBgm) {
-                // 急に消さず、少し余韻を残したい場合はここを調整
                 currentBgm.pause();
             }
             
             currentBgm = nextBgm;
             currentBgm.currentTime = 0;
-            currentBgm.play().catch(e => console.log("BGM playback waiting for user interaction"));
+
+            // 有効化済みであれば再生、未完了ならフラグを待つ
+            if (isAudioEnabled) {
+                currentBgm.play().catch(e => console.log("BGM Play Error:", e));
+            }
         }
 
-        // 最初のクリックやタッチで音声を有効化（スマホ対策）
-        const enableAudio = () => {
-            if (currentBgm && currentBgm.paused) {
-                currentBgm.play();
+        /**
+         * スマホ・PC共通：最初の操作で全音声をアクティベートする
+         */
+        const activateAudio = () => {
+            if (isAudioEnabled) return;
+
+            // 全てのBGMを一度だけ「再生→即停止」してブラウザの制限を解除する
+            // これにより、以降はJSからの play() が自由に行えるようになる
+            Object.values(bgms).forEach(audio => {
+                // 無音で一度再生を試みる
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    }).catch(e => {
+                        console.log("Audio unlock failed for a track:", e);
+                    });
+                }
+            });
+
+            // 現在選択されているBGMがあれば再生を開始
+            if (currentBgm) {
+                currentBgm.play().catch(e => {});
             }
-            window.removeEventListener('click', enableAudio);
-            window.removeEventListener('touchstart', enableAudio);
+
+            isAudioEnabled = true;
+
+            // イベントリスナーを解除してメモリを節約
+            window.removeEventListener('click', activateAudio);
+            window.removeEventListener('touchstart', activateAudio);
         };
-        window.addEventListener('click', enableAudio);
-        window.addEventListener('touchstart', enableAudio);
+
+        // 最初のクリックまたはタップで発火
+        window.addEventListener('click', activateAudio);
+        window.addEventListener('touchstart', activateAudio);
     </script>
 </body>
 </html>
