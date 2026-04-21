@@ -1,190 +1,192 @@
-import tkinter as tk
-from tkinter import messagebox
-import json
 import os
-import sys
-import pygame
+import json
 import random
+import sys
+from flask import Flask, render_template, request, session, redirect, url_for
 
-class QuizApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("仏法研鑽クイズアプリ")
-        self.root.geometry("700x600")
-        self.root.configure(bg="#f0f4f8")
+app = Flask(__name__)
+# セッションの暗号化キー（Render等の環境変数から取得、なければデフォルト）
+app.secret_key = os.environ.get("SECRET_KEY", "nichiren_quiz_ultimate_key")
 
-        # 音声の初期化 (エラー対策)
-        try:
-            pygame.mixer.init()
-        except:
-            pass
-        
-        self.load_data()
-        self.setup_category_screen()
+# --- パス設定 (exe化対策) ---
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-    def load_data(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        json_path = os.path.join(base_dir, "questions.json")
-        try:
-            with open(json_path, "r", encoding="utf-8") as f:
-                self.all_data = json.load(f)
-        except Exception as e:
-            messagebox.showerror("Error", f"JSON読み込み失敗: {e}")
-            sys.exit()
+QUESTIONS_FILE = os.path.join(BASE_DIR, "questions.json")
 
-    def clear_screen(self):
-        """画面を掃除する"""
-        for widget in self.root.winfo_children():
-            widget.destroy()
+# --- ユーティリティ関数 ---
+def load_json(path):
+    """JSONファイルを読み込む補助関数"""
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.loads(f.read().strip() or "{}")
+    except:
+        return {}
 
-    def setup_category_screen(self):
-        """章を選択するメニュー画面"""
-        self.clear_screen()
-        
-        tk.Label(self.root, text="研鑽したい章を選んでください", 
-                 font=("MS Gothic", 20, "bold"), bg="#f0f4f8", fg="#2c3e50").pack(pady=30)
-        
-        container = tk.Frame(self.root, bg="#f0f4f8")
-        container.pack()
+def get_user_stats():
+    """ユーザーの累計正解数に基づいた形態とステータスを計算"""
+    total_score = session.get('total_score', 0)
+    
+    # 形態進化の定義（閾値は適宜調整してください）
+    if total_score >= 125:
+        form, time, lives = "最終形態", 30, 7
+    elif total_score >= 80:
+        form, time, lives = "第４形態", 15, 4
+    elif total_score >= 50:
+        form, time, lives = "第３形態", 10, 3
+    elif total_score >= 20:
+        form, time, lives = "第２形態", 7, 2
+    else:
+        form, time, lives = "第１形態", 5, 1
 
-        # 章ごとにボタンを作成
-        for category in self.all_data.keys():
-            btn = tk.Button(
-                container, text=category, font=("MS Gothic", 12), 
-                width=40, height=2, bg="#ffffff", relief="flat",
-                cursor="hand2", command=lambda c=category: self.start_quiz(c)
-            )
-            btn.pack(pady=5)
+    # 次の進化までの残り数
+    thresholds = [20, 50, 80, 125]
+    next_evol = next((t - total_score for t in thresholds if total_score < t), 0)
 
-    def start_quiz(self, category):
-        """クイズ開始"""
-        self.questions = list(self.all_data[category])
-        if not self.questions:
-            messagebox.showinfo("準備中", "この章の問題は現在準備中です。")
-            return
-            
-        random.shuffle(self.questions) # ランダム出題
-        self.current_index = 0
-        self.score = 0
-        
-        self.clear_screen()
-        self.setup_ui()
-        self.display_question()
+    return {
+        "form_name": form,
+        "time_limit": time,
+        "max_lives": lives,
+        "total_score": total_score,
+        "next_evolution": next_evol
+    }
 
-    def setup_ui(self):
-        """クイズ画面のUI構築"""
-        self.label_info = tk.Label(self.root, text="", font=("Arial", 11), bg="#f0f4f8")
-        self.label_info.pack(pady=10)
+# --- ルート定義 ---
 
-        self.label_question = tk.Label(
-            self.root, text="", font=("MS Gothic", 16, "bold"),
-            wraplength=600, bg="white", height=6, relief="flat", padx=20
-        )
-        self.label_question.pack(pady=20, fill="x", padx=40)
+@app.route('/')
+def index():
+    """メインメニュー画面"""
+    if 'user_name' not in session:
+        return render_template('login.html')
+    
+    user_stats = get_user_stats()
+    return render_template('index.html', user_name=session['user_name'], user_stats=user_stats)
 
-        # 選択肢用
-        self.choice_frame = tk.Frame(self.root, bg="#f0f4f8")
-        self.btn_list = []
-        colors = ["#3498db", "#2ecc71", "#f1c40f", "#e74c3c"]
-        for i in range(4):
-            btn = tk.Button(self.choice_frame, text="", font=("MS Gothic", 12),
-                            width=45, height=2, bg=colors[i], fg="black",
-                            command=lambda idx=i: self.check_answer(idx, "choice"))
-            btn.pack(pady=5)
-            self.btn_list.append(btn)
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        session['user_name'] = request.form.get('user_name', 'ゲスト')
+        session['total_score'] = session.get('total_score', 0)
+        return redirect(url_for('index'))
+    return render_template('login.html')
 
-        # 記述用
-        self.input_frame = tk.Frame(self.root, bg="#f0f4f8")
-        self.entry_answer = tk.Entry(self.input_frame, font=("Arial", 18), width=25, justify="center")
-        self.entry_answer.pack(pady=20)
-        self.entry_answer.bind("<Return>", lambda e: self.check_answer(None, "input"))
-        tk.Button(self.input_frame, text="回答を確定", font=("MS Gothic", 12, "bold"),
-                  bg="#34495e", fg="white", width=20, height=2,
-                  command=lambda: self.check_answer(None, "input")).pack()
+@app.route('/start/<category>')
+def start_quiz(category):
+    """章別学習開始（全問題を出題）"""
+    if 'user_name' not in session: 
+        return redirect(url_for('login'))
+    
+    questions_data = load_json(QUESTIONS_FILE)
+    category_data = questions_data.get(category, [])
+    
+    if not category_data:
+        return redirect(url_for('index'))
 
-    def display_question(self):
-        """問題表示"""
-        if self.current_index < len(self.questions):
-            data = self.questions[self.current_index]
-            self.label_info.config(text=f"問題 {self.current_index + 1} / {len(self.questions)}")
-            self.label_question.config(text=data["question"])
-            
-            self.choice_frame.pack_forget()
-            self.input_frame.pack_forget()
+    # 全問題のIDを取得してシャッフル
+    ids = [q['id'] for q in category_data]
+    random.shuffle(ids)
+    
+    session.update({
+        'question_ids': ids, 
+        'current_index': 0, 
+        'score': 0, 
+        'mode': 'study', 
+        'category': category
+    })
+    return redirect(url_for('quiz_page'))
 
-            if data["type"] == "choice":
-                self.choice_frame.pack()
-                for i, opt in enumerate(data["options"]):
-                    self.btn_list[i].config(text=opt)
-            else:
-                self.input_frame.pack()
-                self.entry_answer.delete(0, tk.END)
-                self.entry_answer.focus_set()
-        else:
-            self.show_result()
+@app.route('/quiz')
+def quiz_page():
+    """クイズ表示画面"""
+    if 'question_ids' not in session:
+        return redirect(url_for('index'))
+    
+    idx = session['current_index']
+    ids = session['question_ids']
+    
+    # 全て解き終わったら結果画面へ
+    if idx >= len(ids):
+        return redirect(url_for('result'))
 
-    def check_answer(self, idx, q_type):
-        """答えを判定し、解説を表示する"""
-        data = self.questions[self.current_index]
-        is_correct = False
-        correct_text = ""
+    # 現在の問題データを特定
+    questions_data = load_json(QUESTIONS_FILE)
+    current_id = ids[idx]
+    current_q = None
+    for cat_list in questions_data.values():
+        for q in cat_list:
+            if q['id'] == current_id:
+                current_q = q
+                break
+    
+    user_stats = get_user_stats()
+    return render_template('quiz.html', question=current_q, stats=user_stats, index=idx+1)
 
-        # --- 判定ロジック ---
-        if q_type == "choice":
-            # 4択の場合
-            if idx == data["answer"]:
-                is_correct = True
-            correct_text = data["options"][data["answer"]]
-        else:
-            # 記述式の場合
-            user_input = self.entry_answer.get().strip()
-            # 答えが複数ある場合（リスト）と、一つの場合（文字列）の両方に対応
-            answers = data["answer"] if isinstance(data["answer"], list) else [data["answer"]]
-            if any(user_input.lower() == str(a).lower() for a in answers):
-                is_correct = True
-            correct_text = answers[0]
+@app.route('/answer', methods=['POST'])
+def answer():
+    """回答判定（音は鳴らさず、フラグを渡してHTML/JSに鳴らさせる）"""
+    user_ans = request.form.get('answer')
+    q_id = request.form.get('question_id')
+    
+    questions_data = load_json(QUESTIONS_FILE)
+    current_q = None
+    for cat_list in questions_data.values():
+        for q in cat_list:
+            if q['id'] == q_id:
+                current_q = q
+                break
+    
+    if not current_q:
+        return redirect(url_for('index'))
 
-        # --- 解説文の取得 ---
-        # JSONに "commentary" がない場合は「（解説はありません）」と表示
-        commentary = data.get("commentary", "解説は現在準備中です。")
+    # 判定
+    is_correct = False
+    if current_q['type'] == 'choice':
+        is_correct = (str(user_ans) == str(current_q['answer']))
+    else:
+        # 記述式：リスト形式と文字列形式の両方に対応
+        answers = current_q['answer'] if isinstance(current_q['answer'], list) else [current_q['answer']]
+        is_correct = (user_ans.strip() in [str(a).strip() for a in answers])
 
-        # --- 音の再生 ---
-        self.play_sound(is_correct)
+    if is_correct:
+        session['score'] = session.get('score', 0) + 1
+        session['total_score'] = session.get('total_score', 0) + 1
 
-        # --- メッセージの組み立て ---
-        title = "✨ 正解 ✨" if is_correct else "残念..."
-        
-        # 画面に表示するテキスト
-        message = f"【正解： {correct_text} 】\n\n"
-        message += f"《 解説 》\n{commentary}"
+    # 正解テキストの準備
+    if current_q['type'] == 'choice':
+        correct_text = current_q['options'][int(current_q['answer'])]
+    else:
+        correct_text = current_q['answer'][0] if isinstance(current_q['answer'], list) else current_q['answer']
 
-        # ポップアップを表示
-        if is_correct:
-            self.score += 1
-            messagebox.showinfo(title, message)
-        else:
-            messagebox.showwarning(title, message)
-        
-        # --- 次の問題へ進む ---
-        self.current_index += 1
-        self.display_question()
-        
-    def play_sound(self, is_correct):
-        try:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            file = "correct.mp3" if is_correct else "wrong.mp3"
-            path = os.path.join(base_dir, "assets", file)
-            if os.path.exists(path):
-                pygame.mixer.music.load(path)
-                pygame.mixer.music.play()
-        except:
-            pass
+    return render_template('quiz.html', 
+                           question=current_q, 
+                           is_correct=is_correct, 
+                           is_judged=True,
+                           correct_text=correct_text,
+                           commentary=current_q.get('commentary', '解説はありません。'),
+                           stats=get_user_stats())
 
-    def show_result(self):
-        messagebox.showinfo("終了", f"お疲れ様でした！\nスコア: {self.score} / {len(self.questions)}")
-        self.setup_category_screen() # カテゴリー選択に戻る
+@app.route('/next')
+def next_question():
+    session['current_index'] = session.get('current_index', 0) + 1
+    return redirect(url_for('quiz_page'))
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = QuizApp(root)
-    root.mainloop()
+@app.route('/result')
+def result():
+    """結果表示"""
+    score = session.get('score', 0)
+    total = len(session.get('question_ids', []))
+    return render_template('result.html', score=score, total=total)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    # 実行ポートをRender等に合わせて変更可能に
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)

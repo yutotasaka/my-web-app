@@ -13,8 +13,9 @@
         .login-card { 
             width: 100%; max-width: 400px; padding: 25px; border: 4px solid #fff; 
             background: #111; text-align: center; box-sizing: border-box;
+            outline: 4px solid #333; outline-offset: -8px;
         }
-        h1 { font-size: 1.5rem; color: #f59e0b; margin: 0 0 20px 0; }
+        h1 { font-size: 1.5rem; color: #f59e0b; margin: 0 0 20px 0; text-shadow: 2px 2px #444; }
         
         /* 注意書きエリア */
         .notice-box {
@@ -29,18 +30,22 @@
             width: 100%; padding: 15px; background: #000; border: 2px solid #fff; 
             color: #fff; font-family: 'DotGothic16'; text-align: center; 
             margin-bottom: 20px; box-sizing: border-box; font-size: 1rem;
+            outline: none;
         }
+        input:focus { border-color: #60a5fa; }
+
         .btn-start { 
             display: block; width: 100%; padding: 15px; background: transparent; 
             border: 2px solid #fff; color: #fff; cursor: pointer; 
             font-weight: bold; font-family: 'DotGothic16'; font-size: 1rem;
+            transition: 0.2s;
         }
         .btn-start:active { background: #fff; color: #000; }
     </style>
 </head>
 <body>
     <div class="login-card">
-        <h1>Game Start!</h1>
+        <h1>GAME START</h1>
 
         <div class="notice-box">
             【冒険者へ】<br>
@@ -56,10 +61,73 @@
 
         <p style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 10px;">勇者の名前を刻んでください</p>
         
-        <form method="POST">
-            <input type="text" name="user_name" placeholder="なまえを入力" required autofocus>
-            <button type="submit" class="btn-start">▶ 冒険をはじめる</button>
+        <form method="POST" id="login-form">
+            <input type="text" name="user_name" placeholder="なまえを入力" required autofocus onfocus="prepareAudio()">
+            <button type="button" class="btn-start" onclick="handleLogin()">▶ 冒険をはじめる</button>
         </form>
     </div>
+
+    <script>
+        // 音源の準備
+        const seClick = new Audio('/static/sounds/click.mp3');
+        seClick.load();
+
+        /**
+         * ブラウザの自動再生制限を解除するための準備
+         * 入力欄を触ったタイミングなどで音声を一度だけ初期化する
+         */
+        function prepareAudio() {
+            // 無音で再生してすぐに止めることで、以降の自由な再生を許可させる
+            seClick.play().then(() => {
+                seClick.pause();
+                seClick.currentTime = 0;
+            }).catch(() => {});
+        }
+
+        /**
+         * ログインボタン押下時の処理
+         */
+        function handleLogin() {
+            const form = document.getElementById('login-form');
+            const input = form.querySelector('input[name="user_name"]');
+
+            // 名前が空ならブラウザの標準バリデーションに任せる
+            if (!input.value) {
+                form.reportValidity();
+                return;
+            }
+
+            // 音声を再生
+            seClick.pause();
+            seClick.currentTime = 0;
+            const playPromise = seClick.play();
+
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    // 音が鳴り始めたら、150ms待ってから送信
+                    setTimeout(() => {
+                        form.submit();
+                    }, 150);
+                }).catch(error => {
+                    // 音がブロックされた場合は即送信
+                    console.log("Audio block:", error);
+                    form.submit();
+                });
+            } else {
+                // 古いブラウザ用
+                setTimeout(() => {
+                    form.submit();
+                }, 700);
+            }
+        }
+
+        // Enterキーでも音が鳴るように制御
+        document.getElementById('login-form').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleLogin();
+            }
+        });
+    </script>
 </body>
 </html>
