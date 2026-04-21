@@ -6,25 +6,31 @@
     <title>クイズRPG道場</title>
     <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
     <style>
-        /* レイアウトCSSは変更なしのため省略（そのままお使いください） */
+        /* レイアウトCSS */
         body { font-family: 'DotGothic16', sans-serif; background: #000; color: #fff; padding: 10px; margin: 0; display: flex; justify-content: center; min-height: 100vh; }
         .menu-card { width: 100%; max-width: 500px; background: #1a1a1a; padding: 20px; border: 4px solid #fff; outline: 4px solid #333; outline-offset: -8px; box-sizing: border-box; }
         h1 { font-size: 1.2rem; color: #f59e0b; text-shadow: 2px 2px #444; margin-bottom: 20px; text-align: center; }
+        
         .user-status { background: radial-gradient(circle, #444 0%, #111 90%); padding: 30px 15px; border: 2px solid #444; margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; gap: 15px; position: relative; overflow: hidden; }
         .user-status::before { content: ""; position: absolute; width: 200px; height: 200px; background: rgba(245, 158, 11, 0.15); filter: blur(40px); border-radius: 50%; z-index: 0; top: 10px; }
+        
         .monster-img { width: 80%; max-width: 220px; height: auto; object-fit: contain; z-index: 1; filter: drop-shadow(0 0 10px rgba(255,255,255,0.4)); animation: float 4s ease-in-out infinite; }
         @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-12px) scale(1.03); } }
+        
         .form-label { color: #60a5fa; font-size: 1.2rem; font-weight: bold; margin-top: 5px; border-bottom: 2px solid #60a5fa; padding: 0 10px; z-index: 1; }
         .stats-summary { text-align: center; z-index: 1; background: rgba(0, 0, 0, 0.6); padding: 8px 15px; border-radius: 10px; }
+        
         .grid { display: grid; gap: 12px; margin-bottom: 20px; }
         .btn { display: block; padding: 16px; border: 2px solid #fff; text-decoration: none; font-weight: bold; color: #fff; text-align: center; transition: 0.2s; font-size: 0.95rem; box-sizing: border-box; cursor: pointer; background: transparent; }
         .btn:active { background: #fff; color: #000; } 
         .btn-battle { border-color: #ef4444; color: #ef4444; }
         .btn-ranking { border-color: #f59e0b; color: #f59e0b; }
+        
         .info-container { overflow-x: auto; margin-top: 20px; }
         .info-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; color: #cbd5e1; min-width: 300px; }
         .info-table th, .info-table td { padding: 8px; border-bottom: 1px solid #333; text-align: center; }
         .current-row { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #60a5fa; }
+        
         .footer-links { text-align: center; margin-top: 20px; border-top: 1px dashed #444; padding-top: 15px; }
         .logout-link { color: #666; text-decoration: none; font-size: 0.85rem; cursor: pointer; padding: 10px; }
     </style>
@@ -78,7 +84,7 @@
         seClick.load();
 
         /**
-         * 親画面にメニューBGMへの切り替えを依頼する
+         * 親画面にBGM切り替えを依頼する（防御コード付き）
          */
         function triggerBGM() {
             if (window.parent && typeof window.parent.changeBGM === 'function') {
@@ -90,28 +96,37 @@
          * 画面遷移時の共通処理
          */
         function navWithSound(url) {
+            // タップされた瞬間にBGM指示も予備で送る（スマホ対策）
+            triggerBGM();
+
             seClick.pause();
             seClick.currentTime = 0;
             
-            seClick.play().then(() => {
+            const playPromise = seClick.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    setTimeout(() => { window.location.href = url; }, 150);
+                }).catch(() => {
+                    window.location.href = url;
+                });
+            } else {
                 setTimeout(() => { window.location.href = url; }, 150);
-            }).catch(() => {
-                window.location.href = url;
-            });
+            }
         }
 
         /**
-         * ログアウト処理
+         * ログアウト
          */
         function logoutGame() {
-            seClick.play();
+            seClick.play().catch(() => {});
             setTimeout(() => { window.top.location.href = '/logout'; }, 150);
         }
 
-        // ページが読み込まれた瞬間にBGMをリセット
+        // 1. ページ読み込み時に実行
         window.onload = triggerBGM;
 
-        // モバイル等のブラウザ制限対策：画面のどこかを触ったら念のため再度リセットをかける
+        // 2. スマホ対策：画面のどこかを最初に触った時に強制リセット
+        // これを入れないと、ログイン後の自動遷移で音が止まったままになることがあります
         window.addEventListener('click', triggerBGM, { once: true });
         window.addEventListener('touchstart', triggerBGM, { once: true });
     </script>

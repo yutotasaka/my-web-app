@@ -6,7 +6,6 @@
     <title>クイズRPG道場</title>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
-        /* ゲーム画面を表示する窓 */
         iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
@@ -14,7 +13,7 @@
     <iframe src="{{ target_url }}" id="game-frame"></iframe>
 
     <script>
-        // BGMの準備
+        // 1. 音源の準備
         const bgms = {
             menu: new Audio('/static/sounds/bgm_menu.mp3'),
             battle: new Audio('/static/sounds/bgm_battle.mp3'),
@@ -22,72 +21,49 @@
         };
 
         // 基本設定
-        Object.values(bgms).forEach(b => { 
-            b.loop = true; 
-            b.volume = 0.4;
-            b.preload = "auto";
+        Object.values(bgms).forEach(a => { 
+            a.loop = true; 
+            a.volume = 0.4; 
+            a.preload = "auto";
         });
 
         let currentBgm = null;
-        let isAudioEnabled = false; // 音声が有効化されたかどうかのフラグ
 
         /**
-         * BGMを切り替える関数（子画面から呼び出す）
+         * BGMを切り替える関数（子画面から呼ばれる）
          */
         function changeBGM(type) {
-            const nextBgm = bgms[type];
-            if (!nextBgm || currentBgm === nextBgm) return;
+            console.log("BGM Request:", type);
+            if (!bgms[type]) return;
+            if (currentBgm === bgms[type]) return;
 
-            // 今の曲を停止
-            if (currentBgm) {
-                currentBgm.pause();
-            }
-            
-            currentBgm = nextBgm;
+            if (currentBgm) currentBgm.pause();
+            currentBgm = bgms[type];
             currentBgm.currentTime = 0;
-
-            // 有効化済みであれば再生、未完了ならフラグを待つ
-            if (isAudioEnabled) {
-                currentBgm.play().catch(e => console.log("BGM Play Error:", e));
-            }
+            
+            // 再生（ブラウザの制限があるため、ここでは失敗してもOK）
+            currentBgm.play().catch(e => {
+                console.log("Play blocked. Waiting for user interaction.");
+            });
         }
 
         /**
-         * スマホ・PC共通：最初の操作で全音声をアクティベートする
+         * スマホ・PC共通：画面を触った瞬間に「音を出せる状態」にする
          */
-        const activateAudio = () => {
-            if (isAudioEnabled) return;
-
-            // 全てのBGMを一度だけ「再生→即停止」してブラウザの制限を解除する
-            // これにより、以降はJSからの play() が自由に行えるようになる
-            Object.values(bgms).forEach(audio => {
-                // 無音で一度再生を試みる
-                const playPromise = audio.play();
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        audio.pause();
-                        audio.currentTime = 0;
-                    }).catch(e => {
-                        console.log("Audio unlock failed for a track:", e);
-                    });
-                }
-            });
-
-            // 現在選択されているBGMがあれば再生を開始
-            if (currentBgm) {
-                currentBgm.play().catch(e => {});
+        const unlockAudio = () => {
+            // 現在セットされているBGMがあれば再生
+            if (currentBgm && currentBgm.paused) {
+                currentBgm.play().catch(e => console.log(e));
             }
-
-            isAudioEnabled = true;
-
-            // イベントリスナーを解除してメモリを節約
-            window.removeEventListener('click', activateAudio);
-            window.removeEventListener('touchstart', activateAudio);
+            
+            // 一度触ればロックは解除されるので、このイベント自体を消す
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('touchstart', unlockAudio);
         };
 
-        // 最初のクリックまたはタップで発火
-        window.addEventListener('click', activateAudio);
-        window.addEventListener('touchstart', activateAudio);
+        // 画面全体へのクリック・タップを監視
+        window.addEventListener('click', unlockAudio);
+        window.addEventListener('touchstart', unlockAudio);
     </script>
 </body>
 </html>
