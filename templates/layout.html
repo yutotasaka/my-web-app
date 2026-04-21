@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>クイズRPG道場</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
+        /* ゲーム画面を表示する窓 */
+        iframe { width: 100%; height: 100%; border: none; }
+    </style>
+</head>
+<body>
+    <iframe src="{{ target_url }}" id="game-frame"></iframe>
+
+    <script>
+        // BGMの準備
+        const bgms = {
+            menu: new Audio('/static/sounds/bgm_menu.mp3'),
+            battle: new Audio('/static/sounds/bgm_battle.mp3'),
+            study: new Audio('/static/sounds/bgm_study.mp3')
+        };
+
+        // 全てループ設定
+        Object.values(bgms).forEach(b => { 
+            b.loop = true; 
+            b.volume = 0.4; // 爆音防止に少し下げめがオススメ
+            b.preload = "auto";
+        });
+
+        let currentBgm = null;
+
+        /**
+         * BGMを切り替える関数（子画面から呼び出す）
+         */
+        function changeBGM(type) {
+            const nextBgm = bgms[type];
+            if (!nextBgm || currentBgm === nextBgm) return;
+
+            if (currentBgm) {
+                // 急に消さず、少し余韻を残したい場合はここを調整
+                currentBgm.pause();
+            }
+            
+            currentBgm = nextBgm;
+            currentBgm.currentTime = 0;
+            currentBgm.play().catch(e => console.log("BGM playback waiting for user interaction"));
+        }
+
+        // 最初のクリックやタッチで音声を有効化（スマホ対策）
+        const enableAudio = () => {
+            if (currentBgm && currentBgm.paused) {
+                currentBgm.play();
+            }
+            window.removeEventListener('click', enableAudio);
+            window.removeEventListener('touchstart', enableAudio);
+        };
+        window.addEventListener('click', enableAudio);
+        window.addEventListener('touchstart', enableAudio);
+    </script>
+</body>
+</html>

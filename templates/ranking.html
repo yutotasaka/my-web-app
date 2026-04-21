@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RANKING - クイズRPG</title>
     <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
     <style>
@@ -90,20 +90,27 @@
             {% endfor %}
         </div>
 
-        <a href="javascript:void(0)" class="back-btn" onclick="navBackWithSound('/')">◀ 道場へもどる</a>
+        <a href="javascript:void(0)" class="back-btn" onclick="navBackWithSound('/index_content')">◀ 道場へもどる</a>
     </div>
 
     <script>
-        // クリック音源の準備
+        // クリックSEの準備
         const seClick = new Audio('/static/sounds/click.mp3');
         seClick.load();
 
         /**
+         * 親画面（layout.html）のBGM再生を指示
+         */
+        function triggerBGM() {
+            if (window.parent && window.parent.changeBGM) {
+                window.parent.changeBGM('menu');
+            }
+        }
+
+        /**
          * 音を鳴らしてから画面遷移する
-         * @param {string} url - 遷移先のパス
          */
         function navBackWithSound(url) {
-            // 音声再生のリセット
             seClick.pause();
             seClick.currentTime = 0;
 
@@ -111,22 +118,28 @@
 
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    // 音が聞こえ始めるまで0.15秒待機して遷移
+                    // クリック音が聞こえる時間を確保（150ms）
                     setTimeout(() => {
                         window.location.href = url;
-                    }, 700);
+                    }, 150);
                 }).catch(e => {
-                    // 再生エラー（ブロック等）時は即座に遷移
-                    console.log("Audio play blocked:", e);
                     window.location.href = url;
                 });
             } else {
-                // 古いブラウザ用
                 setTimeout(() => {
                     window.location.href = url;
                 }, 150);
             }
         }
+
+        // ページ読み込み時にBGMの状態を確認
+        window.onload = function() {
+            triggerBGM();
+        };
+
+        // 予備の再生トリガー
+        window.addEventListener('click', triggerBGM, { once: true });
+        window.addEventListener('touchstart', triggerBGM, { once: true });
     </script>
 </body>
 </html>

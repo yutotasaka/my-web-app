@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LOGIN - クイズRPG</title>
     <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
     <style>
@@ -17,12 +17,11 @@
         }
         h1 { font-size: 1.5rem; color: #f59e0b; margin: 0 0 20px 0; text-shadow: 2px 2px #444; }
         
-        /* 注意書きエリア */
         .notice-box {
             background: #222; border: 2px solid #444; padding: 15px; 
             text-align: left; font-size: 0.8rem; line-height: 1.6; 
-            height: 120px; overflow-y: scroll; margin-bottom: 25px;
-            color: #94a3b8;
+            height: 120px; overflow-y: auto; margin-bottom: 25px;
+            color: #94a3b8; -webkit-overflow-scrolling: touch;
         }
         .notice-box b { color: #ef4444; }
 
@@ -30,7 +29,7 @@
             width: 100%; padding: 15px; background: #000; border: 2px solid #fff; 
             color: #fff; font-family: 'DotGothic16'; text-align: center; 
             margin-bottom: 20px; box-sizing: border-box; font-size: 1rem;
-            outline: none;
+            outline: none; border-radius: 0; appearance: none;
         }
         input:focus { border-color: #60a5fa; }
 
@@ -62,72 +61,76 @@
         <p style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 10px;">勇者の名前を刻んでください</p>
         
         <form method="POST" id="login-form">
-            <input type="text" name="user_name" placeholder="なまえを入力" required autofocus onfocus="prepareAudio()">
+            <input type="text" name="user_name" placeholder="なまえを入力" required autofocus onfocus="triggerParentBGM()">
             <button type="button" class="btn-start" onclick="handleLogin()">▶ 冒険をはじめる</button>
         </form>
     </div>
 
     <script>
-        // 音源の準備
+        // クリックSE（各ページで持つ）
         const seClick = new Audio('/static/sounds/click.mp3');
         seClick.load();
 
         /**
-         * ブラウザの自動再生制限を解除するための準備
-         * 入力欄を触ったタイミングなどで音声を一度だけ初期化する
+         * 親画面（layout.html）のBGM再生を開始させる
          */
-        function prepareAudio() {
-            // 無音で再生してすぐに止めることで、以降の自由な再生を許可させる
-            seClick.play().then(() => {
-                seClick.pause();
-                seClick.currentTime = 0;
-            }).catch(() => {});
+        function triggerParentBGM() {
+            if (window.parent && window.parent.changeBGM) {
+                window.parent.changeBGM('menu');
+            }
         }
 
         /**
-         * ログインボタン押下時の処理
+         * ログインボタン処理
          */
         function handleLogin() {
             const form = document.getElementById('login-form');
             const input = form.querySelector('input[name="user_name"]');
 
-            // 名前が空ならブラウザの標準バリデーションに任せる
             if (!input.value) {
                 form.reportValidity();
                 return;
             }
 
-            // 音声を再生
+            // 親のBGMが鳴っていなければ改めて指示
+            triggerParentBGM();
+
+            // クリック音を再生
             seClick.pause();
             seClick.currentTime = 0;
+            
             const playPromise = seClick.play();
 
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    // 音が鳴り始めたら、150ms待ってから送信
+                    // 音を聞かせるために150ms待機
                     setTimeout(() => {
                         form.submit();
                     }, 150);
                 }).catch(error => {
-                    // 音がブロックされた場合は即送信
-                    console.log("Audio block:", error);
                     form.submit();
                 });
             } else {
-                // 古いブラウザ用
                 setTimeout(() => {
                     form.submit();
-                }, 700);
+                }, 150);
             }
         }
 
-        // Enterキーでも音が鳴るように制御
+        // Enterキー対応
         document.getElementById('login-form').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 handleLogin();
             }
         });
+
+        // ページ読み込み時、もし親がいればBGMをセット
+        window.onload = triggerParentBGM;
+        
+        // 画面タッチでもBGMが反応するように予備策
+        window.addEventListener('click', triggerParentBGM, { once: true });
+        window.addEventListener('touchstart', triggerParentBGM, { once: true });
     </script>
 </body>
 </html>
