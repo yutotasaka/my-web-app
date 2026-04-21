@@ -94,10 +94,24 @@ def study_menu():
 
 @app.route('/start/<category>')
 def start_quiz(category):
-    if 'user_name' not in session: return redirect(url_for('login'))
+    if 'user_name' not in session: 
+        return redirect(url_for('login'))
+    
+    # カテゴリ内の全問題IDを取得
     ids = [q['id'] for q in load_json(QUESTIONS_FILE).get(category, [])]
+    
+    # シャッフル（順番をバラバラにする場合。固定順が良いならこの行を消す）
     random.shuffle(ids)
-    session.update({'question_ids': ids[:10], 'current_index': 0, 'score': 0, 'new_solved_count': 0, 'mode': 'study', 'category': category})
+    
+    # 「[:10]」を削除して ids 全体を session に入れる
+    session.update({
+        'question_ids': ids, # ここを修正：全問セット
+        'current_index': 0, 
+        'score': 0, 
+        'new_solved_count': 0, 
+        'mode': 'study', 
+        'category': category
+    })
     return redirect(url_for('quiz_page'))
 
 @app.route('/start_total_study')
