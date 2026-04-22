@@ -13,17 +13,17 @@
     <iframe src="{{ target_url }}" id="game-frame"></iframe>
 
     <script>
-        // 1. 音源を定義
         const bgms = {
             menu: new Audio('/static/sounds/bgm_menu.mp3'),
             battle: new Audio('/static/sounds/bgm_battle.mp3'),
             study: new Audio('/static/sounds/bgm_study.mp3')
         };
 
-        // 2. 初期設定（ループと音量）
         Object.values(bgms).forEach(a => { 
             a.loop = true; 
             a.volume = 0.4; 
+            // スマホ向けに事前に少し読み込ませる
+            a.preload = "auto";
         });
 
         let currentBgm = null;
@@ -36,7 +36,7 @@
             const nextBgm = bgms[type];
             if (!nextBgm || currentBgm === nextBgm) return;
 
-            // 前の曲を停止
+            // 前の曲を停止してリセット
             if (currentBgm) {
                 currentBgm.pause();
                 currentBgm.currentTime = 0;
@@ -44,25 +44,27 @@
 
             currentBgm = nextBgm;
 
-            // PCならこの時点で鳴り始める。スマホなら後のクリック待ち。
-            currentBgm.play().catch(e => {
-                console.log("Waiting for user interaction to start BGM...");
-            });
+            // 再生を試みる（スマホではここで一度ブロックされることが多い）
+            const playPromise = currentBgm.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.log("BGM playback is waiting for user touch.");
+                });
+            }
         }
 
         /**
-         * スマホ・PC共通：ユーザーが画面を触った瞬間に「今流れるべき音」を鳴らす
+         * ユーザーが画面を触った瞬間に「今セットされている曲」を強制的に鳴らす
          */
         const handleUserInteraction = () => {
             if (currentBgm && currentBgm.paused) {
-                currentBgm.play().catch(e => console.log("Play failed:", e));
+                // ユーザーが触ったこの瞬間に play() を呼ぶことでロックが解除される
+                currentBgm.play().catch(e => console.log("Unlock failed:", e));
             }
-            // 一度再生に成功すれば、以降はこのリスナーは不要
-            // ただし、スマホで「曲が切り替わった時」に再度ブロックされるのを防ぐため、
-            // removeEventListener はあえて行わない方が安定する場合があります。
         };
 
-        // click（PC/スマホ）と touchstart（スマホ最速）の両方を登録
+        // スマホでは touchstart が最も反応が良い
         window.addEventListener('click', handleUserInteraction);
         window.addEventListener('touchstart', handleUserInteraction);
     </script>
