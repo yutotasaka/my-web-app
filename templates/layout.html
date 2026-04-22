@@ -22,7 +22,6 @@
         Object.values(bgms).forEach(a => { 
             a.loop = true; 
             a.volume = 0.4; 
-            // スマホ向けに事前に少し読み込ませる
             a.preload = "auto";
         });
 
@@ -36,7 +35,6 @@
             const nextBgm = bgms[type];
             if (!nextBgm || currentBgm === nextBgm) return;
 
-            // 前の曲を停止してリセット
             if (currentBgm) {
                 currentBgm.pause();
                 currentBgm.currentTime = 0;
@@ -44,29 +42,45 @@
 
             currentBgm = nextBgm;
 
-            // 再生を試みる（スマホではここで一度ブロックされることが多い）
-            const playPromise = currentBgm.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.log("BGM playback is waiting for user touch.");
-                });
-            }
+            // 遷移直後に自動再生を試みる
+            currentBgm.play().catch(e => {
+                console.log("スマホのロック解除待ち...");
+            });
         }
 
         /**
-         * ユーザーが画面を触った瞬間に「今セットされている曲」を強制的に鳴らす
+         * スマホ対策の核心：画面を触った瞬間に「全音源」を一度だけアクティベートする
          */
-        const handleUserInteraction = () => {
-            if (currentBgm && currentBgm.paused) {
-                // ユーザーが触ったこの瞬間に play() を呼ぶことでロックが解除される
-                currentBgm.play().catch(e => console.log("Unlock failed:", e));
+        const unlockAllAudio = () => {
+            console.log("User touched the screen. Unlocking all audio tracks.");
+            
+            // 現在の曲があればそれを再生
+            if (currentBgm) {
+                currentBgm.play().catch(e => {});
             }
+
+            // 【重要】全ての曲を「無音で一瞬だけ再生→停止」させる。
+            // これにより、以降の画面切り替え（自動遷移）でもロックがかからなくなります。
+            Object.values(bgms).forEach(audio => {
+                if (audio !== currentBgm) {
+                    // 低い音量で一瞬再生して即座に一時停止
+                    const originalVolume = audio.volume;
+                    audio.volume = 0;
+                    audio.play().then(() => {
+                        audio.pause();
+                        audio.volume = originalVolume;
+                    }).catch(() => {});
+                }
+            });
+
+            // 一度この「全解放」に成功すれば、この関数はもう不要
+            window.removeEventListener('click', unlockAllAudio);
+            window.removeEventListener('touchstart', unlockAllAudio);
         };
 
-        // スマホでは touchstart が最も反応が良い
-        window.addEventListener('click', handleUserInteraction);
-        window.addEventListener('touchstart', handleUserInteraction);
+        // 画面のどこかを触った瞬間に全解放
+        window.addEventListener('click', unlockAllAudio);
+        window.addEventListener('touchstart', unlockAllAudio);
     </script>
 </body>
 </html>
