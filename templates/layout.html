@@ -13,14 +13,12 @@
     <iframe src="{{ target_url }}" id="game-frame"></iframe>
 
     <script>
-        // 1. 音源の準備
         const bgms = {
             menu: new Audio('/static/sounds/bgm_menu.mp3'),
             battle: new Audio('/static/sounds/bgm_battle.mp3'),
             study: new Audio('/static/sounds/bgm_study.mp3')
         };
 
-        // 基本設定
         Object.values(bgms).forEach(a => { 
             a.loop = true; 
             a.volume = 0.4; 
@@ -28,42 +26,50 @@
         });
 
         let currentBgm = null;
+        let isActivated = false;
 
-        /**
-         * BGMを切り替える関数（子画面から呼ばれる）
-         */
         function changeBGM(type) {
-            console.log("BGM Request:", type);
-            if (!bgms[type]) return;
-            if (currentBgm === bgms[type]) return;
+            if (!bgms[type] || currentBgm === bgms[type]) return;
 
             if (currentBgm) currentBgm.pause();
             currentBgm = bgms[type];
-            currentBgm.currentTime = 0;
             
-            // 再生（ブラウザの制限があるため、ここでは失敗してもOK）
-            currentBgm.play().catch(e => {
-                console.log("Play blocked. Waiting for user interaction.");
-            });
+            // スマホ向け：一度でも画面を触っていれば即再生
+            if (isActivated) {
+                currentBgm.currentTime = 0;
+                currentBgm.play().catch(e => console.log("Play delay:", e));
+            }
         }
 
         /**
-         * スマホ・PC共通：画面を触った瞬間に「音を出せる状態」にする
+         * スマホの「反応の鈍さ」を解消する魔法の処理
          */
-        const unlockAudio = () => {
-            // 現在セットされているBGMがあれば再生
-            if (currentBgm && currentBgm.paused) {
-                currentBgm.play().catch(e => console.log(e));
-            }
-            
-            // 一度触ればロックは解除されるので、このイベント自体を消す
-            window.removeEventListener('click', unlockAudio);
-            window.removeEventListener('touchstart', unlockAudio);
+        const activateAllAudio = () => {
+            if (isActivated) return;
+
+            // 重要：全ての音源を「0.1秒だけ再生して止める」
+            // これによりスマホのブラウザが「このサイトの音はいつでも出してOK」と学習します
+            Object.values(bgms).forEach(a => {
+                a.play().then(() => {
+                    // 今流すべき曲以外は即止める
+                    if (a !== currentBgm) {
+                        a.pause();
+                        a.currentTime = 0;
+                    }
+                }).catch(e => {});
+            });
+
+            isActivated = true;
+            console.log("Audio fully activated for mobile");
+
+            // 二度手間にならないようイベント削除
+            window.removeEventListener('click', activateAllAudio);
+            window.removeEventListener('touchstart', activateAllAudio);
         };
 
-        // 画面全体へのクリック・タップを監視
-        window.addEventListener('click', unlockAudio);
-        window.addEventListener('touchstart', unlockAudio);
+        // touchstart（指が触れた瞬間）に反応させるのがスマホでは最速
+        window.addEventListener('click', activateAllAudio);
+        window.addEventListener('touchstart', activateAllAudio);
     </script>
 </body>
 </html>
