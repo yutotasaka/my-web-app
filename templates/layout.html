@@ -26,6 +26,7 @@
         });
 
         let currentBgm = null;
+        let isUnlocked = false; // 全音源のロック解除状態を管理
 
         /**
          * 子画面（iframe）から呼ばれるBGM切り替え関数
@@ -42,43 +43,51 @@
 
             currentBgm = nextBgm;
 
-            // 遷移直後に自動再生を試みる
-            currentBgm.play().catch(e => {
-                console.log("スマホのロック解除待ち...");
-            });
+            // 解除済みなら即再生。未解除なら次のユーザー操作(SE等)を待つ。
+            if (isUnlocked) {
+                currentBgm.play().catch(e => console.log("Auto-play failed, waiting for touch"));
+            }
         }
 
         /**
-         * スマホ対策の核心：画面を触った瞬間に「全音源」を一度だけアクティベートする
+         * スマホ対策の核心：ユーザー操作時に全音源の「通行許可」をまとめて取得する
+         * SE(click.mp3)が鳴るタイミングでこれが動けば、BGMのロックも一緒に外れます。
          */
         const unlockAllAudio = () => {
-            console.log("User touched the screen. Unlocking all audio tracks.");
-            
-            // 現在の曲があればそれを再生
-            if (currentBgm) {
+            // すでにcurrentBgmが決まっているなら、この操作で即再生させる
+            if (currentBgm && currentBgm.paused) {
                 currentBgm.play().catch(e => {});
             }
 
-            // 【重要】全ての曲を「無音で一瞬だけ再生→停止」させる。
-            // これにより、以降の画面切り替え（自動遷移）でもロックがかからなくなります。
+            if (isUnlocked) return;
+
+            console.log("Unlocking all audio tracks via user gesture.");
+
+            // 全てのBGMを「一瞬だけ無音で再生→即停止」してブラウザの許可を得る
             Object.values(bgms).forEach(audio => {
-                if (audio !== currentBgm) {
-                    // 低い音量で一瞬再生して即座に一時停止
-                    const originalVolume = audio.volume;
-                    audio.volume = 0;
-                    audio.play().then(() => {
-                        audio.pause();
-                        audio.volume = originalVolume;
-                    }).catch(() => {});
+                const originalVolume = audio.volume;
+                audio.volume = 0; // 混ざらないように無音にする
+                
+                const p = audio.play();
+                if (p !== undefined) {
+                    p.then(() => {
+                        // 今流すべき曲以外は即座に停止してスタンバイ
+                        if (audio !== currentBgm) {
+                            audio.pause();
+                            audio.currentTime = 0;
+                        }
+                        audio.volume = originalVolume; // 音量を戻す
+                    }).catch(e => console.log("Unlock failed for a track:", e));
                 }
             });
 
-            // 一度この「全解放」に成功すれば、この関数はもう不要
+            isUnlocked = true;
+            // 完全に解放されたら、親画面のリスナーは外してOK
             window.removeEventListener('click', unlockAllAudio);
             window.removeEventListener('touchstart', unlockAllAudio);
         };
 
-        // 画面のどこかを触った瞬間に全解放
+        // click（指を離した時）と touchstart（触れた瞬間）の両方で実行
         window.addEventListener('click', unlockAllAudio);
         window.addEventListener('touchstart', unlockAllAudio);
     </script>
