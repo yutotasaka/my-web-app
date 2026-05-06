@@ -13,12 +13,14 @@
     <iframe src="{{ target_url }}" id="game-frame"></iframe>
 
     <script>
+        // 1. 音源の準備
         const bgms = {
             menu: new Audio('/static/sounds/bgm_menu.mp3'),
             battle: new Audio('/static/sounds/bgm_battle.mp3'),
             study: new Audio('/static/sounds/bgm_study.mp3')
         };
 
+        // 基本設定
         Object.values(bgms).forEach(a => { 
             a.loop = true; 
             a.volume = 0.4; 
@@ -26,70 +28,61 @@
         });
 
         let currentBgm = null;
-        let isUnlocked = false; // 全音源のロック解除状態を管理
 
         /**
-         * 子画面（iframe）から呼ばれるBGM切り替え関数
+         * BGMを切り替える（iframeから呼ばれる）
          */
         function changeBGM(type) {
-            console.log("BGM Request:", type);
+            console.log("Request BGM:", type);
             const nextBgm = bgms[type];
             if (!nextBgm || currentBgm === nextBgm) return;
 
+            // 今の曲を止める
             if (currentBgm) {
                 currentBgm.pause();
                 currentBgm.currentTime = 0;
             }
 
             currentBgm = nextBgm;
-
-            // 解除済みなら即再生。未解除なら次のユーザー操作(SE等)を待つ。
-            if (isUnlocked) {
-                currentBgm.play().catch(e => console.log("Auto-play failed, waiting for touch"));
-            }
+            
+            // 再生を試みる（スマホではここで失敗するが、それでOK）
+            currentBgm.play().catch(e => {
+                console.log("Play blocked. Waiting for touch.");
+            });
         }
 
         /**
-         * スマホ対策の核心：ユーザー操作時に全音源の「通行許可」をまとめて取得する
-         * SE(click.mp3)が鳴るタイミングでこれが動けば、BGMのロックも一緒に外れます。
+         * スマホ・PC共通：ユーザーが画面を触った瞬間に音を叩き起こす
          */
-        const unlockAllAudio = () => {
-            // すでにcurrentBgmが決まっているなら、この操作で即再生させる
-            if (currentBgm && currentBgm.paused) {
-                currentBgm.play().catch(e => {});
+        const unlockAudio = () => {
+            // 現在セットされている曲があれば再生
+            if (currentBgm) {
+                const playPromise = currentBgm.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => console.log("Unlock failed:", e));
+                }
             }
 
-            if (isUnlocked) return;
-
-            console.log("Unlocking all audio tracks via user gesture.");
-
-            // 全てのBGMを「一瞬だけ無音で再生→即停止」してブラウザの許可を得る
+            // 【重要】SEが鳴るタイミングで「他の全ての曲」も1回ずつplayを叩いて
+            // ブラウザの「自動再生禁止」のフラグを折る
             Object.values(bgms).forEach(audio => {
-                const originalVolume = audio.volume;
-                audio.volume = 0; // 混ざらないように無音にする
-                
-                const p = audio.play();
-                if (p !== undefined) {
-                    p.then(() => {
-                        // 今流すべき曲以外は即座に停止してスタンバイ
-                        if (audio !== currentBgm) {
-                            audio.pause();
-                            audio.currentTime = 0;
-                        }
-                        audio.volume = originalVolume; // 音量を戻す
-                    }).catch(e => console.log("Unlock failed for a track:", e));
+                // まだロード中の場合などは無視して次に進む（エラーで止まらせない）
+                if (audio.readyState >= 2) { // 2 = HAVE_CURRENT_DATA 以上ならOK
+                    const p = audio.play();
+                    if (p !== undefined) {
+                        p.then(() => {
+                            if (audio !== currentBgm) {
+                                audio.pause();
+                            }
+                        }).catch(e => {});
+                    }
                 }
             });
-
-            isUnlocked = true;
-            // 完全に解放されたら、親画面のリスナーは外してOK
-            window.removeEventListener('click', unlockAllAudio);
-            window.removeEventListener('touchstart', unlockAllAudio);
         };
 
-        // click（指を離した時）と touchstart（触れた瞬間）の両方で実行
-        window.addEventListener('click', unlockAllAudio);
-        window.addEventListener('touchstart', unlockAllAudio);
+        // clickとtouchstartの両方に登録（removeしないことで、曲が変わるたびに解除し直す）
+        window.addEventListener('click', unlockAudio);
+        window.addEventListener('touchstart', unlockAudio);
     </script>
 </body>
 </html>
